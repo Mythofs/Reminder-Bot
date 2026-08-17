@@ -1,10 +1,10 @@
 const path = require('node:path');
-require('dotenv').config({ path: path.resolve(__dirname, '../private/.env') });
-const { Client, Collection, Events, GatewayIntentBits, MessageFlags, EmbedBuilder } = require('discord.js');
+require('dotenv').config({ path: path.resolve(__dirname, './.env') });
+const { Client, Collection, Events, GatewayIntentBits, MessageFlags } = require('discord.js');
 const fs = require('node:fs');
 const safeFetch = require("./safeFetch.js");
-const db = require('./db.js');
-const { hospitalCache, travelCache, idCache, mugCache } = require("./statusCache");
+const reminderStore = require("./reminderStore.js");
+const reminderCache = require("./reminderCache.js");
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 
@@ -39,10 +39,48 @@ for(const file of eventFiles) {
     }
 }
 
+let channel;
+
 client.once('clientReady', async () => {
+    channel = await client.channels.fetch(process.env.CHANNEL_ID);
+    await setUp();
     console.log("Setup complete");
 });
 
 client.login(process.env.TOKEN).catch((e) => {
     console.log("Error logging into discord", e);
 });
+
+async function setUp() {
+    try {
+        await checkReminders();
+        setInterval(async() => {
+            await checkReminders();
+        }, 60000)
+    }
+    catch(e) {
+        console.log(e);
+        await channel.send("Error setting up " + e);
+    }
+}
+async function checkReminders() {
+    try {
+        if(reminderStore.size > 0) {
+            const playerData = await safeFetch(`https://api.torn.com/user/?selections=profile,icons&key=${process.env.API_KEY}&comment=ReminderBot`);
+            if(!playerData) return;
+            console.log(playerData);
+            if(reminderStore.has("drug") && !("icon50" in playerData.icons))
+                if(reminderCache.has("drug"))
+                    await channel.send({
+                        content: `@everyone Drug cooldown ended`,
+                        allowedMentions: { parse: ['everyone'] },
+                    });
+                else
+                    reminderCache.add("drug");
+        }
+    }
+    catch(e) {
+        console.log(e);
+        await channel.send("Error checking reminders " + e);
+    }
+}
