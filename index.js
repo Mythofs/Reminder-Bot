@@ -56,7 +56,7 @@ async function setUp() {
         await checkReminders();
         setInterval(async() => {
             await checkReminders();
-        }, 60000)
+        }, 30000)
     }
     catch(e) {
         console.log(e);
@@ -71,10 +71,10 @@ async function checkReminders() {
             if(!playerData) return;
             console.log(playerData);
             if(reminderStore.has("drug"))
-                if(!("icon50" in playerData.icons) && !("icon52" in playerData.icons))
+                if(!("icon50" in playerData.icons) && !("icon51" in playerData.icons) && !("icon52" in playerData.icons))
                     if(!reminderCache.has("drug")) {
                         await channel.send({
-                            content: `@everyone Drug cooldown ended`,
+                            content: `@everyone | Drug cooldown ended | [Items](https://www.torn.com/item.php)`,
                             allowedMentions: { parse: ["everyone"] },
                         });
                         reminderCache.add("drug");
@@ -85,7 +85,7 @@ async function checkReminders() {
                 if(playerData.energy.current === playerData.energy.maximum)
                     if(!reminderCache.has("energy")) {
                         await channel.send({
-                            content: `@everyone Energy bar full`,
+                            content: `@everyone | Energy bar full | [Gym](https://www.torn.com/gym.php)`,
                             allowedMentions: { parse: ["everyone"] },
                         });
                         reminderCache.add("energy");
@@ -96,13 +96,24 @@ async function checkReminders() {
                 if(playerData.nerve.current === playerData.nerve.maximum)
                     if(!reminderCache.has("nerve")) {
                         await channel.send({
-                            content: `@everyone Nerve bar full`,
+                            content: `@everyone | Nerve bar full | [Crimes](https://www.torn.com/page.php?sid=crimes#/)`,
                             allowedMentions: { parse: ["everyone"] },
                         });
                         reminderCache.add("nerve");
                     }
                 else
                     reminderCache.delete("nerve");
+            if(reminderStore.has("race"))
+                if(!("icon17" in playerData.icons))
+                    if(!reminderCache.has("nerve")) {
+                        await channel.send({
+                            content: `@everyone | Race ended | [Race](https://www.torn.com/page.php?sid=racing)`,
+                            allowedMentions: { parse: ["everyone"] },
+                        });
+                        reminderCache.add("race");
+                    }
+                else
+                    reminderCache.delete("race");
         }
     }
     catch(e) {
