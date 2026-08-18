@@ -1,11 +1,10 @@
 const path = require('node:path');
-require('dotenv').config({ path: path.resolve(__dirname, './.env') });
+require('dotenv').config({ path: path.resolve(__dirname, '../private/.env') });
 const { Client, Collection, Events, GatewayIntentBits, MessageFlags } = require('discord.js');
 const fs = require('node:fs');
 const safeFetch = require("./safeFetch.js");
-const reminderStore = require("./reminderStore.js");
 const reminderCache = require("./reminderCache.js");
-
+const queryRetry = require("./queryRetry.js");
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 
 client.commands = new Collection();
@@ -43,6 +42,7 @@ let channel;
 
 client.once('clientReady', async () => {
     channel = await client.channels.fetch(process.env.CHANNEL_ID);
+    await queryRetry("CREATE TABLE IF NOT EXISTS reminder_store (reminder VARCHAR(255))");
     await setUp();
     console.log("Setup complete");
 });
@@ -65,18 +65,44 @@ async function setUp() {
 }
 async function checkReminders() {
     try {
+        const reminderStore = new Set((await queryRetry("SELECT * FROM reminder_store")).map(row => row.reminder));
         if(reminderStore.size > 0) {
-            const playerData = await safeFetch(`https://api.torn.com/user/?selections=profile,icons&key=${process.env.API_KEY}&comment=ReminderBot`);
+            const playerData = await safeFetch(`https://api.torn.com/user/?selections=profile,icons,bars&key=${process.env.API_KEY}&comment=ReminderBot`);
             if(!playerData) return;
             console.log(playerData);
-            if(reminderStore.has("drug") && !("icon50" in playerData.icons))
-                if(reminderCache.has("drug"))
-                    await channel.send({
-                        content: `@everyone Drug cooldown ended`,
-                        allowedMentions: { parse: ['everyone'] },
-                    });
+            if(reminderStore.has("drug"))
+                if(!("icon50" in playerData.icons) && !("icon52" in playerData.icons))
+                    if(!reminderCache.has("drug")) {
+                        await channel.send({
+                            content: `@everyone Drug cooldown ended`,
+                            allowedMentions: { parse: ["everyone"] },
+                        });
+                        reminderCache.add("drug");
+                    }
                 else
-                    reminderCache.add("drug");
+                    reminderCache.delete("drug");
+            if(reminderStore.has("energy"))
+                if(playerData.energy.current === playerData.energy.maximum)
+                    if(!reminderCache.has("energy")) {
+                        await channel.send({
+                            content: `@everyone Energy bar full`,
+                            allowedMentions: { parse: ["everyone"] },
+                        });
+                        reminderCache.add("energy");
+                    }
+                else
+                    reminderCache.delete("energy");
+            if(reminderStore.has("nerve"))
+                if(playerData.nerve.current === playerData.nerve.maximum)
+                    if(!reminderCache.has("nerve")) {
+                        await channel.send({
+                            content: `@everyone Nerve bar full`,
+                            allowedMentions: { parse: ["everyone"] },
+                        });
+                        reminderCache.add("nerve");
+                    }
+                else
+                    reminderCache.delete("nerve");
         }
     }
     catch(e) {

@@ -1,5 +1,5 @@
 const { Events, MessageFlags } = require('discord.js');
-const reminderStore = require("../reminderStore.js");
+const queryRetry = require("../queryRetry.js");
 const reminderCache = require("../reminderCache.js");
 
 module.exports = {
@@ -37,13 +37,13 @@ module.exports = {
             }
         }
         else if(interaction.isModalSubmit()) {
+            await interaction.deferReply();
             const options = interaction.fields.getCheckboxGroup("reminderCheckbox");
-            reminderStore.clear();
+            await queryRetry("TRUNCATE TABLE reminder_store");
             reminderCache.clear();
             for(const option of options)
-                reminderStore.add(option);
-            console.log(reminderStore);
-            return await interaction.reply("Reminders set: " + options);
+                await queryRetry("INSERT INTO reminder_store (reminder) VALUES (?)", [option]);
+            return await interaction.editReply("Reminders set: " + options);
         }
     }
 }
